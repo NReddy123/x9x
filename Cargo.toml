@@ -1,0 +1,16 @@
+[workspace]
+resolver = "2"
+members = ["crates/x9-core", "crates/x9-viewer"]
+
+[profile.release]
+opt-level = 3
+lto = "thin"
+codegen-units = 1
+
+# xattr 0.2.3 (via gpui -> zed-async-tar) fails to build against current libc
+# because `libc::ENOATTR` was removed on Linux; ENODATA is the same errno there.
+[patch.crates-io]
+xattr = { path = "vendor/xattr" }
+
+[profile.dev]
+debug = "line-tables-only"

@@ -1,0 +1,8 @@
+[package]
+name = "x9-core"
+version = "0.1.0"
+edition = "2021"
+description = "Parser, editor model and writer for ANSI X9.37 / X9.100-187 check image files"
+
+[dependencies]
+thiserror = "1"

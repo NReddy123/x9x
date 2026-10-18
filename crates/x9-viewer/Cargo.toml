@@ -1,0 +1,9 @@
+[package]
+name = "x9-viewer"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+gpui-kit = "0.7.3"
+image = "0.25.10"
+x9-core = { version = "0.1.0", path = "../x9-core" }
