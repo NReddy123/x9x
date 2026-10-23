@@ -714,7 +714,7 @@ impl Render for X9App {
                                 div()
                                     .text_xs()
                                     .text_color(gpui_kit::rgb(if self.dark { 0xA3B0A7 } else { 0x77786D }))
-                                    .child(format!("{count} records")),
+                                    .child(format!("{count} entries")),
                             ),
                     )
                     .child(
