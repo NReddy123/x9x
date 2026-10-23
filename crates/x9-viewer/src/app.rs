@@ -305,6 +305,10 @@ impl X9App {
     fn render_rows(&mut self, range: Range<usize>, cx: &mut Context<Self>) -> Vec<gpui_kit::AnyElement> {
         let Some(l) = &self.loaded else { return vec![] };
         let theme = cx.theme().clone();
+        let ink = gpui_kit::rgb(if self.dark { 0xE8E9DF } else { 0x293A33 });
+        let muted = gpui_kit::rgb(if self.dark { 0xA3B0A7 } else { 0x77786D });
+        let accent = gpui_kit::rgb(if self.dark { 0xA1CDB5 } else { 0x276653 });
+        let selected_bg = gpui_kit::rgb(if self.dark { 0x2D463B } else { 0xDFEAE0 });
         range
             .map(|ix| {
                 let row = l.rows[ix].clone();
@@ -315,17 +319,32 @@ impl X9App {
                     .flex_row()
                     .justify_between()
                     .items_center()
-                    .h(px(26.))
+                    .h(px(32.))
                     .pl(px(8. + 14. * row.depth as f32))
-                    .pr_2()
+                    .pr_3()
                     .cursor_pointer()
                     .text_sm()
-                    .when(selected, |d| d.bg(theme.list_active))
+                    .text_color(ink)
+                    .when(selected, |d| d.bg(selected_bg))
                     .hover(|d| d.bg(theme.list_hover))
                     .when(row.item.is_none(), |d| d.font_weight(FontWeight::SEMIBOLD))
                     .on_click(cx.listener(move |this, _, window, cx| this.select_row(ix, window, cx)))
-                    .child(row.label)
-                    .child(div().text_color(theme.muted_foreground).child(row.detail))
+                    .child(
+                        div()
+                            .flex()
+                            .flex_row()
+                            .items_center()
+                            .gap_2()
+                            .child(
+                                div()
+                                    .w(px(12.))
+                                    .text_xs()
+                                    .text_color(if row.item.is_some() { muted } else { accent })
+                                    .child(if row.item.is_some() { "•" } else { "⌄" }),
+                            )
+                            .child(row.label),
+                    )
+                    .child(div().text_xs().text_color(muted).child(row.detail))
                     .into_any_element()
             })
             .collect()
@@ -333,6 +352,10 @@ impl X9App {
 
     fn render_image(&self, cx: &mut Context<Self>) -> gpui_kit::AnyElement {
         let theme = cx.theme().clone();
+        let ink = gpui_kit::rgb(if self.dark { 0xE8E9DF } else { 0x293A33 });
+        let muted = gpui_kit::rgb(if self.dark { 0xA3B0A7 } else { 0x77786D });
+        let canvas = gpui_kit::rgb(if self.dark { 0x141A17 } else { 0xEAE5DB });
+        let white = gpui_kit::rgb(if self.dark { 0xF2F0E8 } else { 0xFFFFFF });
         let body = match &self.shown {
             Some(Shown { decoded: Ok(d) }) => {
                 let w = d.width as f32 * self.zoom * 0.4;
@@ -349,7 +372,7 @@ impl X9App {
                             .flex_none()
                             .border_1()
                             .border_color(theme.border)
-                            .bg(gpui_kit::white()),
+                            .bg(white),
                     )
                     .into_any_element()
             }
@@ -357,7 +380,27 @@ impl X9App {
             None if self.images.is_empty() => centered(cx, "No image for this selection".into()),
             None => centered(cx, "Decoding image…".into()),
         };
-        let mut bar = div().flex().flex_row().gap_2().items_center().p_2().border_b_1().border_color(theme.border);
+        let mut bar = div()
+            .flex()
+            .flex_row()
+            .gap_3()
+            .items_center()
+            .px_4()
+            .h(px(54.))
+            .border_b_1()
+            .border_color(theme.border)
+            .bg(if self.dark {
+                gpui_kit::rgb(0x202923)
+            } else {
+                gpui_kit::rgb(0xF8F5ED)
+            })
+            .child(
+                div()
+                    .text_xs()
+                    .font_weight(FontWeight::BOLD)
+                    .text_color(ink)
+                    .child("IMAGE PREVIEW"),
+            );
         for (i, v) in self.images.iter().enumerate() {
             bar = bar.child(
                 Button::new(("side", i))
@@ -376,7 +419,7 @@ impl X9App {
         };
         bar = bar
             .child(div().flex_1())
-            .child(div().text_sm().text_color(theme.muted_foreground).child(info))
+            .child(div().text_xs().text_color(muted).child(info))
             .child(Button::new("zout").small().ghost().label("−").on_click(cx.listener(|this, _, _, cx| {
                 this.zoom = (this.zoom / 1.25).max(0.2);
                 cx.notify();
@@ -390,12 +433,51 @@ impl X9App {
                 cx.notify();
             })))
             .child(Button::new("export").small().label("Export").on_click(cx.listener(Self::export_image)));
-        div().flex().flex_col().size_full().child(bar).child(div().flex_1().min_h_0().child(body)).into_any_element()
+        div()
+            .flex()
+            .flex_col()
+            .size_full()
+            .child(bar)
+            .child(div().flex_1().min_h_0().bg(canvas).child(body))
+            .into_any_element()
     }
 
     fn render_inspector(&self, cx: &mut Context<Self>) -> gpui_kit::AnyElement {
         let theme = cx.theme().clone();
-        let mut col = div().flex().flex_col().size_full();
+        let ink = gpui_kit::rgb(if self.dark { 0xE8E9DF } else { 0x293A33 });
+        let muted = gpui_kit::rgb(if self.dark { 0xA3B0A7 } else { 0x77786D });
+        let mut col = div()
+            .flex()
+            .flex_col()
+            .size_full()
+            .child(
+                div()
+                    .flex()
+                    .flex_col()
+                    .gap_1()
+                    .px_4()
+                    .py_3()
+                    .border_b_1()
+                    .border_color(theme.border)
+                    .bg(if self.dark {
+                        gpui_kit::rgb(0x202923)
+                    } else {
+                        gpui_kit::rgb(0xF8F5ED)
+                    })
+                    .child(
+                        div()
+                            .text_xs()
+                            .font_weight(FontWeight::BOLD)
+                            .text_color(ink)
+                            .child("RECORD INSPECTOR"),
+                    )
+                    .child(
+                        div()
+                            .text_xs()
+                            .text_color(muted)
+                            .child("Fields, raw data & actions"),
+                    ),
+            );
         let Some(l) = &self.loaded else { return col.into_any_element() };
         // Record tabs for the selected item.
         let mut tabs = div().flex().flex_row().flex_wrap().gap_1().p_2().border_b_1().border_color(theme.border);
@@ -425,7 +507,7 @@ impl X9App {
                     .flex_col()
                     .gap_1()
                     .child(
-                        div().text_xs().text_color(theme.muted_foreground).child(format!(
+                        div().text_xs().text_color(muted).child(format!(
                             "{} · pos {}–{}",
                             def.name,
                             def.start,
@@ -436,20 +518,15 @@ impl X9App {
             );
         }
         if self.fields.is_empty() && self.selected_record.is_some() {
-            form = form.child(div().text_sm().text_color(theme.muted_foreground).child("No field layout for this record type."));
+            form = form.child(div().text_sm().text_color(muted).child("No field layout for this record type."));
         }
         col = col.child(form);
         if let Some(rec) = self.selected_record {
             let raw = l.file.records[rec].text(l.file.encoding, 1, 160);
             col = col.child(
-                div()
-                    .p_2()
-                    .border_t_1()
-                    .border_color(theme.border)
-                    .font_family("monospace")
-                    .text_xs()
-                    .text_color(theme.muted_foreground)
-                    .child(raw),
+                div().flex().flex_col().gap_1().p_3().border_t_1().border_color(theme.border)
+                    .child(div().text_xs().font_weight(FontWeight::BOLD).text_color(muted).child("RAW RECORD"))
+                    .child(div().font_family("monospace").text_xs().text_color(muted).child(raw)),
             );
         }
         col.child(
@@ -543,12 +620,53 @@ impl Render for X9App {
             .items_center()
             .gap_2()
             .px_3()
-            .h(px(44.))
+            .h(px(58.))
             .border_b_1()
             .border_color(theme.border)
-            .bg(theme.title_bar)
-            .child(div().font_weight(FontWeight::BOLD).child(format!("{title}{}", if self.dirty { " •" } else { "" })))
+            .bg(if self.dark {
+                gpui_kit::rgb(0x202923)
+            } else {
+                gpui_kit::rgb(0xF8F5ED)
+            })
+            .child(
+                div()
+                    .flex()
+                    .items_center()
+                    .justify_center()
+                    .w(px(34.))
+                    .h(px(34.))
+                    .bg(if self.dark {
+                        gpui_kit::rgb(0x315342)
+                    } else {
+                        gpui_kit::rgb(0x276653)
+                    })
+                    .text_color(gpui_kit::rgb(0xF8F5ED))
+                    .font_weight(FontWeight::BOLD)
+                    .font_family("monospace")
+                    .child("x9"),
+            )
+            .child(
+                div()
+                    .flex()
+                    .flex_col()
+                    .gap_1()
+                    .child(
+                        div()
+                            .text_xs()
+                            .font_weight(FontWeight::BOLD)
+                            .text_color(gpui_kit::rgb(if self.dark { 0xA1CDB5 } else { 0x276653 }))
+                            .child("X9 / CHECK OPERATIONS"),
+                    )
+                    .child(
+                        div()
+                            .text_sm()
+                            .font_weight(FontWeight::SEMIBOLD)
+                            .text_color(gpui_kit::rgb(if self.dark { 0xE8E9DF } else { 0x293A33 }))
+                            .child(format!("{title}{}", if self.dirty { "  •" } else { "" })),
+                    ),
+            )
             .child(div().flex_1())
+            .child(div().text_xs().text_color(gpui_kit::rgb(if self.dark { 0xA3B0A7 } else { 0x77786D })).child("FILE"))
             .child(Button::new("open").primary().small().label("Open").on_click(cx.listener(Self::open_dialog)))
             .child(Button::new("save").small().label("Save").on_click(cx.listener(Self::save)))
             .child(Button::new("saveas").small().label("Save As").on_click(cx.listener(Self::save_as)))
@@ -566,15 +684,49 @@ impl Render for X9App {
             .flex_none()
             .border_r_1()
             .border_color(theme.border)
-            .bg(theme.sidebar)
+            .bg(if self.dark {
+                gpui_kit::rgb(0x1B241F)
+            } else {
+                gpui_kit::rgb(0xF2EEE5)
+            })
             .child(
-                uniform_list(
-                    "x9-rows",
-                    count,
-                    cx.processor(|this, range, _window, cx| this.render_rows(range, cx)),
-                )
-                .track_scroll(&self.scroll)
-                .size_full(),
+                div()
+                    .flex()
+                    .flex_col()
+                    .size_full()
+                    .child(
+                        div()
+                            .flex()
+                            .items_center()
+                            .justify_between()
+                            .px_4()
+                            .h(px(48.))
+                            .border_b_1()
+                            .border_color(theme.border)
+                            .child(
+                                div()
+                                    .text_xs()
+                                    .font_weight(FontWeight::BOLD)
+                                    .text_color(gpui_kit::rgb(if self.dark { 0xE8E9DF } else { 0x293A33 }))
+                                    .child("FILE CONTENTS"),
+                            )
+                            .child(
+                                div()
+                                    .text_xs()
+                                    .text_color(gpui_kit::rgb(if self.dark { 0xA3B0A7 } else { 0x77786D }))
+                                    .child(format!("{count} records")),
+                            ),
+                    )
+                    .child(
+                        uniform_list(
+                            "x9-rows",
+                            count,
+                            cx.processor(|this, range, _window, cx| this.render_rows(range, cx)),
+                        )
+                        .track_scroll(&self.scroll)
+                        .flex_1()
+                        .min_h_0(),
+                    ),
             );
         let _ = ScrollStrategy::Nearest;
         let image = self.render_image(cx);
@@ -593,7 +745,7 @@ impl Render for X9App {
                     .flex_1()
                     .min_h_0()
                     .child(tree)
-                    .child(div().flex_1().min_w_0().h_full().bg(theme.muted).child(image))
+                    .child(div().flex_1().min_w_0().h_full().child(image))
                     .child(
                         div().w(px(380.)).h_full().flex_none().border_l_1().border_color(theme.border).child(inspector),
                     ),
@@ -605,7 +757,12 @@ impl Render for X9App {
                     .flex()
                     .items_center()
                     .text_xs()
-                    .text_color(theme.muted_foreground)
+                    .text_color(gpui_kit::rgb(if self.dark { 0xA3B0A7 } else { 0x77786D }))
+                    .bg(if self.dark {
+                        gpui_kit::rgb(0x202923)
+                    } else {
+                        gpui_kit::rgb(0xF8F5ED)
+                    })
                     .border_t_1()
                     .border_color(theme.border)
                     .child(self.status.clone()),
