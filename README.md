@@ -33,6 +33,20 @@ cargo run --release -p x9-viewer -- path/to/file.x9
 
 Linux needs `libfontconfig1-dev libxkbcommon-x11-dev libwayland-dev libxcb1-dev libssl-dev`, and a Vulkan/GL-capable GPU.
 
+## Screenshots
+
+Loaded sample X9 file with check images and record details:
+
+![X9 Viewer showing a loaded sample file](screenshots/viewer-loaded.png)
+
+Sample file after validation:
+
+![X9 Viewer showing successful validation](screenshots/viewer-validated.png)
+
+Dark theme:
+
+![X9 Viewer in dark mode](screenshots/viewer-dark-mode.png)
+
 Note: the field layouts follow the public X9.37 record structure; some fields of less common records
 (26, 61, 62) are best-effort and unmapped bytes are always preserved on save.
 `vendor/xattr` is a one-line patch needed for gpui's `zed-async-tar` dependency to build on current `libc`.
