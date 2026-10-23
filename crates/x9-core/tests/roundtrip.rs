@@ -94,3 +94,20 @@ fn rejects_garbage() {
     assert!(X9File::parse(b"hello world").is_err());
     assert!(X9File::parse(&[]).is_err());
 }
+
+#[test]
+fn alternate_framings_roundtrip() {
+    use x9_core::Framing;
+    for e in [Encoding::Ascii, Encoding::Ebcdic] {
+        let mut f = X9File::parse(&sample(e)).unwrap();
+        for fr in [Framing::LittleEndian, Framing::IbmBlocked] {
+            f.framing = fr;
+            let bytes = f.to_bytes();
+            let g = X9File::parse(&bytes).unwrap();
+            assert_eq!(g.framing, fr);
+            assert_eq!(g.encoding, e);
+            assert_eq!(g.records.len(), f.records.len());
+            assert_eq!(g.to_bytes(), bytes);
+        }
+    }
+}

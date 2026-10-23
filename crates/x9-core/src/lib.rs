@@ -9,5 +9,5 @@ pub mod ebcdic;
 pub mod file;
 pub mod layout;
 
-pub use file::{Encoding, Issue, Item, ImageView, Record, X9Error, X9File, Bundle, CashLetter};
+pub use file::{Encoding, Framing, Issue, Item, ImageView, Record, X9Error, X9File, Bundle, CashLetter};
 pub use layout::{FieldDef, Kind};

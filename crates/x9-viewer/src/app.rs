@@ -86,10 +86,11 @@ impl X9App {
         match std::fs::read(&path).map_err(|e| e.to_string()).and_then(|b| X9File::parse(&b).map_err(|e| e.to_string())) {
             Ok(file) => {
                 self.status = format!(
-                    "{} — {} records, {}",
+                    "{} — {} records, {}, {}",
                     path.display(),
                     file.records.len(),
-                    file.encoding.label()
+                    file.encoding.label(),
+                    file.framing.label()
                 )
                 .into();
                 self.set_file(file, Some(path), window, cx);
