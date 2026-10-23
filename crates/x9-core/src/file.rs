@@ -11,6 +11,27 @@ pub enum X9Error {
     NotX9,
 }
 
+/// Record framing variants found in the wild.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Framing {
+    /// 4-byte big-endian length prefix (standard X9.37).
+    BigEndian,
+    /// 4-byte little-endian length prefix (some PC-generated files).
+    LittleEndian,
+    /// IBM variable-blocked: BDW per block, RDW (length incl. itself) per record.
+    IbmBlocked,
+}
+
+impl Framing {
+    pub fn label(self) -> &'static str {
+        match self {
+            Framing::BigEndian => "RDW (big-endian)",
+            Framing::LittleEndian => "RDW (little-endian)",
+            Framing::IbmBlocked => "BDW+RDW (IBM VB)",
+        }
+    }
+}
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Encoding {
     Ascii,
@@ -136,6 +157,7 @@ pub struct Issue {
 #[derive(Clone, Debug)]
 pub struct X9File {
     pub encoding: Encoding,
+    pub framing: Framing,
     pub records: Vec<Record>,
 }
 
@@ -144,32 +166,102 @@ impl X9File {
         if bytes.len() < 6 {
             return Err(X9Error::Empty);
         }
-        let encoding = match (bytes[4], bytes[5]) {
+        let mut err = X9Error::NotX9;
+        for framing in [Framing::BigEndian, Framing::LittleEndian, Framing::IbmBlocked] {
+            match Self::parse_with(bytes, framing) {
+                Ok(f) => return Ok(f),
+                Err(e @ X9Error::BadRecord(_)) => err = e,
+                Err(_) => {}
+            }
+        }
+        Err(err)
+    }
+
+    fn parse_with(bytes: &[u8], framing: Framing) -> Result<Self, X9Error> {
+        let rd = |p: usize| -> usize {
+            let a: [u8; 4] = bytes[p..p + 4].try_into().unwrap();
+            match framing {
+                Framing::LittleEndian => u32::from_le_bytes(a) as usize,
+                _ => u32::from_be_bytes(a) as usize,
+            }
+        };
+        let first = if framing == Framing::IbmBlocked { 8 } else { 4 };
+        if bytes.len() < first + 2 {
+            return Err(X9Error::NotX9);
+        }
+        let encoding = match (bytes[first], bytes[first + 1]) {
             (0xF0, 0xF1) => Encoding::Ebcdic,
             (b'0', b'1') => Encoding::Ascii,
             _ => return Err(X9Error::NotX9),
         };
+        
         let mut records = Vec::new();
         let mut pos = 0;
         while pos + 4 <= bytes.len() {
-            let len = u32::from_be_bytes(bytes[pos..pos + 4].try_into().unwrap()) as usize;
-            if len == 0 && bytes[pos..].iter().all(|&b| b == 0) {
+            if bytes[pos..].iter().all(|&b| b == 0) {
                 break; // trailing padding
             }
+            if framing == Framing::IbmBlocked {
+                // BDW: 2-byte length (includes BDW) + 2 reserved bytes; then RDWs (length includes RDW).
+                let blen = u16::from_be_bytes([bytes[pos], bytes[pos + 1]]) as usize;
+                if blen < 8 || pos + blen > bytes.len() {
+                    return Err(X9Error::BadRecord(pos));
+                }
+                let end = pos + blen;
+                let mut p = pos + 4;
+                while p + 4 <= end {
+                    let rlen = u16::from_be_bytes([bytes[p], bytes[p + 1]]) as usize;
+                    if rlen < 6 || p + rlen > end {
+                        return Err(X9Error::BadRecord(p));
+                    }
+                    records.push(Record { data: bytes[p + 4..p + rlen].to_vec() });
+                    p += rlen;
+                }
+                pos = end;
+                continue;
+            }
+            let len = rd(pos);
             if len < 2 || pos + 4 + len > bytes.len() {
                 return Err(X9Error::BadRecord(pos));
             }
             records.push(Record { data: bytes[pos + 4..pos + 4 + len].to_vec() });
             pos += 4 + len;
         }
-        Ok(Self { encoding, records })
+        Ok(Self { encoding, framing, records })
     }
 
     pub fn to_bytes(&self) -> Vec<u8> {
         let mut out = Vec::with_capacity(self.records.iter().map(|r| r.data.len() + 4).sum());
-        for r in &self.records {
-            out.extend_from_slice(&(r.data.len() as u32).to_be_bytes());
-            out.extend_from_slice(&r.data);
+        match self.framing {
+            Framing::BigEndian | Framing::LittleEndian => {
+                for r in &self.records {
+                    let n = r.data.len() as u32;
+                    let h = if self.framing == Framing::BigEndian { n.to_be_bytes() } else { n.to_le_bytes() };
+                    out.extend_from_slice(&h);
+                    out.extend_from_slice(&r.data);
+                }
+            }
+            Framing::IbmBlocked => {
+                const MAX_BLOCK: usize = 32_760;
+                let mut block: Vec<u8> = Vec::new();
+                let flush = |block: &mut Vec<u8>, out: &mut Vec<u8>| {
+                    if !block.is_empty() {
+                        out.extend_from_slice(&((block.len() + 4) as u16).to_be_bytes());
+                        out.extend_from_slice(&[0, 0]);
+                        out.append(block);
+                    }
+                };
+                for r in &self.records {
+                    let rl = r.data.len() + 4;
+                    if !block.is_empty() && block.len() + rl + 4 > MAX_BLOCK {
+                        flush(&mut block, &mut out);
+                    }
+                    block.extend_from_slice(&(rl as u16).to_be_bytes());
+                    block.extend_from_slice(&[0, 0]);
+                    block.extend_from_slice(&r.data);
+                }
+                flush(&mut block, &mut out);
+            }
         }
         out
     }
